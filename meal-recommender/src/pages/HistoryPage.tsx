@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Meal } from "../lib/types";
 import { useMeals } from "../hooks/useMeals";
 import { Skeleton } from "../components/Skeleton";
+import { toSeoulDateKey } from "../lib/date";
 
 interface HistoryPageProps {
   userKey: string;
@@ -27,35 +28,52 @@ export function HistoryPage({ userKey, onBack }: HistoryPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFood, setEditFood] = useState("");
   const [editType, setEditType] = useState("lunch");
+  const [error, setError] = useState<string | null>(null);
 
-  async function loadMore(reset = false) {
+  const loadPage = useCallback(async (requestedPage: number, reset: boolean) => {
     setLoading(true);
-    const p = reset ? 0 : page + 1;
-    const result = await getMealsPaginated(userKey, p);
-    setMeals(reset ? result.meals : [...meals, ...result.meals]);
-    setHasMore(result.hasMore);
-    setPage(p);
-    setLoading(false);
-    setInitialLoading(false);
+    setError(null);
+    try {
+      const result = await getMealsPaginated(userKey, requestedPage);
+      setMeals((current) => reset ? result.meals : [...current, ...result.meals]);
+      setHasMore(result.hasMore);
+      setPage(requestedPage);
+    } catch (loadError) {
+      console.error(loadError);
+      setError("기록을 불러오지 못했어요.");
+    } finally {
+      setLoading(false);
+      setInitialLoading(false);
+    }
+  }, [getMealsPaginated, userKey]);
+
+  useEffect(() => { void loadPage(0, true); }, [loadPage]);
+
+  function loadMore() {
+    void loadPage(page + 1, false);
   }
 
-  useEffect(() => { loadMore(true); }, [userKey]);
-
   async function handleDelete(id: string) {
-    await deleteMeal(id);
-    setMeals((prev) => prev.filter((m) => m.id !== id));
-    setDeletingId(null);
+    try {
+      await deleteMeal(id, userKey);
+      setMeals((prev) => prev.filter((m) => m.id !== id));
+      setDeletingId(null);
+    } catch (deleteError) {
+      console.error(deleteError);
+      setError("기록을 삭제하지 못했어요.");
+    }
   }
 
   async function handleSaveEdit(id: string) {
     if (!editFood.trim()) return;
-    await editMeal(id, editFood.trim(), editType);
-    setMeals((prev) =>
-      prev.map((m) =>
-        m.id === id ? { ...m, food_name: editFood.trim(), meal_type: editType as Meal["meal_type"] } : m
-      )
-    );
-    setEditingId(null);
+    try {
+      const updated = await editMeal(id, editFood.trim(), editType as Meal["meal_type"], userKey);
+      setMeals((prev) => prev.map((m) => m.id === id ? updated : m));
+      setEditingId(null);
+    } catch (editError) {
+      console.error(editError);
+      setError("기록을 수정하지 못했어요.");
+    }
   }
 
   function startEdit(meal: Meal) {
@@ -67,14 +85,17 @@ export function HistoryPage({ userKey, onBack }: HistoryPageProps) {
 
   async function handleFavorite(meal: Meal) {
     if (!meal.id) return;
-    await toggleFavorite(meal.id, meal.is_favorite ?? false);
-    setMeals((prev) =>
-      prev.map((m) => (m.id === meal.id ? { ...m, is_favorite: !m.is_favorite } : m))
-    );
+    try {
+      const updated = await toggleFavorite(meal.id, meal.is_favorite ?? false, userKey);
+      setMeals((prev) => prev.map((m) => m.id === meal.id ? updated : m));
+    } catch (favoriteError) {
+      console.error(favoriteError);
+      setError("즐겨찾기를 변경하지 못했어요.");
+    }
   }
 
   const grouped = meals.reduce<Record<string, Meal[]>>((acc, meal) => {
-    const date = meal.eaten_at.slice(0, 10);
+    const date = toSeoulDateKey(meal.eaten_at);
     (acc[date] ??= []).push(meal);
     return acc;
   }, {});
@@ -88,7 +109,7 @@ export function HistoryPage({ userKey, onBack }: HistoryPageProps) {
   const [y, setY] = useState(today.getFullYear());
   const daysInMonth = new Date(y, m + 1, 0).getDate();
   const firstDay = new Date(y, m, 1).getDay();
-  const datesWithMeals = new Set(meals.map((meal) => meal.eaten_at.slice(0, 10)));
+  const datesWithMeals = new Set(meals.map((meal) => toSeoulDateKey(meal.eaten_at)));
 
   return (
     <div style={{ padding: "16px" }}>
@@ -107,6 +128,8 @@ export function HistoryPage({ userKey, onBack }: HistoryPageProps) {
           color: view === "calendar" ? "white" : "#333",
         }} onClick={() => setView("calendar")}>캘린더</button>
       </div>
+
+      {error && <p role="alert" style={{ color: "#C62828", fontSize: "14px" }}>{error}</p>}
 
       {view === "calendar" && (
         <div style={{ background: "#F5F5F5", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
@@ -217,7 +240,7 @@ export function HistoryPage({ userKey, onBack }: HistoryPageProps) {
           {meals.length === 0 && <p style={{ color: "#888", fontSize: "14px" }}>아직 기록된 식사가 없어요.</p>}
           {hasMore && (
             <div style={{ textAlign: "center", padding: "16px 0" }}>
-              <button style={btnWeak} onClick={() => loadMore(false)} disabled={loading}>
+              <button style={btnWeak} onClick={loadMore} disabled={loading}>
                 {loading ? "불러오는 중..." : "더 보기"}
               </button>
             </div>

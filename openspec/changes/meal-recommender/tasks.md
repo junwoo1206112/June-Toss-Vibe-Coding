@@ -51,5 +51,5 @@
 - [x] 7.1 Apply TDS design system consistently across all screens
 - [ ] 7.2 Test in 샌드박스 app
 - [x] 7.3 Build and generate .ait bundle
-- [ ] 7.4 Upload to 앱인토스 콘솔
+- [x] 7.4 Upload to 앱인토스 콘솔
 - [ ] 7.5 Submit challenge entry form

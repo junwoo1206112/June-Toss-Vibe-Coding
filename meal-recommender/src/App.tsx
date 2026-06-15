@@ -10,16 +10,18 @@ import { SettingsPage } from "./pages/SettingsPage";
 type Page = "login" | "home" | "history" | "statistics" | "settings";
 
 const isDev = import.meta.env.DEV;
+const isTossLoginEnabled = import.meta.env.VITE_ENABLE_TOSS_LOGIN === "true";
 
 function App() {
-  const { userKey, isLoggedIn, login, devLogin, logout, loginError, loginLoading } =
+  const { userKey, isLoggedIn, login, guestLogin, devLogin, logout, loginError, loginLoading } =
     useAuth();
   const [page, setPage] = useState<Page>("login");
 
   if (!isLoggedIn || !userKey) {
     return (
       <LoginPage
-        onLogin={login}
+        onGuestLogin={guestLogin}
+        onLogin={isTossLoginEnabled ? login : undefined}
         onDevLogin={isDev ? devLogin : undefined}
         error={loginError}
         loading={loginLoading}
@@ -35,6 +37,7 @@ function App() {
     case "settings":
       return (
         <SettingsPage
+          userKey={userKey}
           onBack={() => setPage("home")}
           onLogout={() => {
             logout();

@@ -1,10 +1,11 @@
 import type { Meal } from "../lib/types";
 import { MEAL_TYPE_LABELS } from "../lib/types";
 import type { WeatherData } from "../lib/weather";
+import { getSeoulDay, isSameSeoulDate } from "./date";
 
 function getDayName(date: Date): string {
   const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
-  return days[date.getDay()];
+  return days[getSeoulDay(date)];
 }
 
 function getMealTypeByHour(hour: number): string {
@@ -19,6 +20,36 @@ export interface Recommendation {
   reason: string;
   mealType: string;
   isPersonalized: boolean;
+}
+
+export type MealMood = "any" | "light" | "hearty";
+
+const lightFoods = new Set([
+  "과일", "요거트", "시리얼", "샐러드", "토스트", "샌드위치", "죽",
+  "초밥", "회", "사시미", "메밀소바", "냉모밀", "냉파스타", "콩국수",
+]);
+
+const heartyFoods = new Set([
+  "국밥", "설렁탕", "김치찌개", "된장찌개", "순두부찌개", "부대찌개",
+  "감자탕", "육개장", "삼겹살", "보쌈", "곱창", "불고기", "찜닭",
+  "샤브샤브", "훠궈", "닭한마리", "매운탕", "제육덮밥", "돈까스",
+]);
+
+const moodFallbacks: Record<Exclude<MealMood, "any">, string[]> = {
+  light: ["샐러드", "초밥", "메밀소바", "샌드위치", "죽", "과일", "요거트"],
+  hearty: ["김치찌개", "국밥", "제육덮밥", "돈까스", "삼겹살", "감자탕", "샤브샤브"],
+};
+
+function matchesMood(food: string, mood: MealMood): boolean {
+  if (mood === "light") return lightFoods.has(food);
+  if (mood === "hearty") return heartyFoods.has(food);
+  return true;
+}
+
+function preferMood(foods: string[], mood: MealMood): string[] {
+  if (mood === "any") return foods;
+  const matched = foods.filter((food) => matchesMood(food, mood));
+  return matched.length > 0 ? matched : moodFallbacks[mood];
 }
 
 const defaultSuggestions: Record<string, string[]> = {
@@ -82,8 +113,7 @@ export function getRecommendation(
 ): Recommendation {
   const now = new Date();
   const currentMealType = getMealTypeByHour(now.getHours());
-  const today = now.toISOString().slice(0, 10);
-  const todayMeals = meals.filter((m) => m.eaten_at.startsWith(today));
+  const todayMeals = meals.filter((m) => isSameSeoulDate(m.eaten_at, now));
   const todayFoods = new Set(todayMeals.map((m) => m.food_name));
 
   const weatherBiasActive =
@@ -128,7 +158,7 @@ export function getRecommendation(
   if (meals.length > 0) {
     const sameDayHistory = meals.filter((m) => {
       const d = new Date(m.eaten_at);
-      return d.getDay() === now.getDay() && !m.eaten_at.startsWith(today);
+      return getSeoulDay(d) === getSeoulDay(now) && !isSameSeoulDate(m.eaten_at, now);
     });
 
     const dayStats = new Map<string, number>();
@@ -149,7 +179,7 @@ export function getRecommendation(
       };
     }
 
-    const recent = meals.filter((m) => !m.eaten_at.startsWith(today));
+    const recent = meals.filter((m) => !isSameSeoulDate(m.eaten_at, now));
     if (recent.length > 0) {
       const recentFoods = [
         ...new Set(recent.slice(0, 10).map((m) => m.food_name)),
@@ -188,14 +218,14 @@ export function getRecommendation(
 export function getRecommendations(
   meals: Meal[],
   weather?: WeatherData | null,
-  count: number = 3
+  count: number = 3,
+  mood: MealMood = "any",
 ): Recommendation[] {
   const results: Recommendation[] = [];
   const usedFoods = new Set<string>();
   const currentMealType = getMealTypeByHour(new Date().getHours());
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const todayMeals = meals.filter((m) => m.eaten_at.startsWith(today));
+  const todayMeals = meals.filter((m) => isSameSeoulDate(m.eaten_at, now));
   const todayFoods = new Set(todayMeals.map((m) => m.food_name));
 
   // 1. Weather-based recommendations
@@ -208,7 +238,10 @@ export function getRecommendations(
         : null;
 
     if (category) {
-      const weatherFoodsList = weatherFoods[category]?.[currentMealType] ?? weatherFoods[category]?.lunch ?? [];
+      const weatherFoodsList = preferMood(
+        weatherFoods[category]?.[currentMealType] ?? weatherFoods[category]?.lunch ?? [],
+        mood,
+      );
       const historyMatch = meals
         .map((m) => m.food_name)
         .filter((f) => weatherFoodsList.includes(f) && !todayFoods.has(f) && !usedFoods.has(f));
@@ -241,7 +274,7 @@ export function getRecommendations(
   if (results.length < count && meals.length > 0) {
     const sameDayHistory = meals.filter((m) => {
       const d = new Date(m.eaten_at);
-      return d.getDay() === now.getDay() && !m.eaten_at.startsWith(today);
+      return getSeoulDay(d) === getSeoulDay(now) && !isSameSeoulDate(m.eaten_at, now);
     });
 
     const dayStats = new Map<string, number>();
@@ -249,11 +282,9 @@ export function getRecommendations(
       dayStats.set(m.food_name, (dayStats.get(m.food_name) ?? 0) + 1);
     }
 
-    const sorted = shuffle(
-      [...dayStats.entries()]
-        .filter(([food]) => !todayFoods.has(food) && !usedFoods.has(food))
-        .sort((a, b) => b[1] - a[1])
-    );
+    const sorted = [...dayStats.entries()]
+      .filter(([food]) => !todayFoods.has(food) && !usedFoods.has(food) && matchesMood(food, mood))
+      .sort((a, b) => b[1] - a[1]);
 
     for (const [food] of sorted.slice(0, count - results.length)) {
       results.push({
@@ -266,9 +297,9 @@ export function getRecommendations(
     }
 
     if (results.length < count) {
-      const recent = meals.filter((m) => !m.eaten_at.startsWith(today));
+      const recent = meals.filter((m) => !isSameSeoulDate(m.eaten_at, now));
       const recentFoods = [...new Set(recent.slice(0, 10).map((m) => m.food_name))]
-        .filter((f) => !todayFoods.has(f) && !usedFoods.has(f));
+        .filter((f) => !todayFoods.has(f) && !usedFoods.has(f) && matchesMood(f, mood));
 
       for (const food of recentFoods.slice(0, count - results.length)) {
         results.push({
@@ -284,7 +315,7 @@ export function getRecommendations(
 
   // 3. Fill with default suggestions
   if (results.length < count) {
-    const defaults = defaultSuggestions[currentMealType] ?? defaultSuggestions.lunch;
+    const defaults = preferMood(defaultSuggestions[currentMealType] ?? defaultSuggestions.lunch, mood);
     const available = shuffle(defaults.filter((f) => !usedFoods.has(f)));
 
     for (const food of available.slice(0, count - results.length)) {
@@ -306,8 +337,7 @@ export function getRecommendations(
 export function getTodayStatus(
   meals: Meal[]
 ): { logged: string[]; missing: string[] } {
-  const today = new Date().toISOString().slice(0, 10);
-  const todayMeals = meals.filter((m) => m.eaten_at.startsWith(today));
+  const todayMeals = meals.filter((m) => isSameSeoulDate(m.eaten_at));
   const loggedTypes = new Set(todayMeals.map((m) => m.meal_type));
 
   const allTypes = ["breakfast", "lunch", "dinner"];

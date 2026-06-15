@@ -1,4 +1,9 @@
 {
   "appName": "meal-recommender",
-  "permissions": []
+  "permissions": [
+    {
+      "name": "geolocation",
+      "access": "access"
+    }
+  ]
 }

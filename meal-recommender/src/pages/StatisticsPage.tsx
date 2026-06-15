@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { Meal } from "../lib/types";
 import { useMeals } from "../hooks/useMeals";
 import { Skeleton } from "../components/Skeleton";
+import { getSeoulDay } from "../lib/date";
 
 interface StatisticsPageProps {
   userKey: string;
@@ -19,7 +20,7 @@ export function StatisticsPage({ userKey, onBack }: StatisticsPageProps) {
 
   useEffect(() => {
     getMeals(userKey).then(setMeals);
-  }, [userKey]);
+  }, [getMeals, userKey]);
 
   if (!meals) {
     return (
@@ -58,7 +59,7 @@ export function StatisticsPage({ userKey, onBack }: StatisticsPageProps) {
 
   const dayCount = new Map<number, number>();
   for (const m of meals) {
-    const d = new Date(m.eaten_at).getDay();
+    const d = getSeoulDay(m.eaten_at);
     dayCount.set(d, (dayCount.get(d) ?? 0) + 1);
   }
   const maxDay = Math.max(...dayCount.values(), 1);

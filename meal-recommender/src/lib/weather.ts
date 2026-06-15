@@ -3,9 +3,10 @@ export interface WeatherData {
   condition: "clear" | "cloudy" | "rain" | "snow";
   icon: string;
   label: string;
+  locationSource: "device" | "seoul-default";
 }
 
-let cached: { data: WeatherData; ts: number } | null = null;
+const cached: Partial<Record<WeatherData["locationSource"], { data: WeatherData; ts: number }>> = {};
 const CACHE_TTL = 30 * 60 * 1000;
 
 function getCondition(weatherCode: number): {
@@ -28,31 +29,40 @@ function getCondition(weatherCode: number): {
   return { condition: "clear", icon: "☀️", label: "맑음" };
 }
 
-async function getPosition(): Promise<GeolocationPosition> {
+async function getPosition(): Promise<{ position: GeolocationPosition; source: WeatherData["locationSource"] }> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve({
-        coords: { latitude: 37.5665, longitude: 126.978 },
-      } as GeolocationPosition);
+        position: { coords: { latitude: 37.5665, longitude: 126.978 } } as GeolocationPosition,
+        source: "seoul-default",
+      });
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve(pos),
+      (position) => resolve({ position, source: "device" }),
       () =>
         resolve({
-          coords: { latitude: 37.5665, longitude: 126.978 },
-        } as GeolocationPosition),
+          position: { coords: { latitude: 37.5665, longitude: 126.978 } } as GeolocationPosition,
+          source: "seoul-default",
+        }),
       { enableHighAccuracy: false, timeout: 5000 }
     );
   });
 }
 
-export async function getWeather(): Promise<WeatherData | null> {
-  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
+export async function getWeather(requestCurrentLocation = true): Promise<WeatherData | null> {
+  const cacheKey: WeatherData["locationSource"] = requestCurrentLocation ? "device" : "seoul-default";
+  const cacheEntry = cached[cacheKey];
+  if (cacheEntry && Date.now() - cacheEntry.ts < CACHE_TTL) return cacheEntry.data;
 
   try {
-    const pos = await getPosition();
-    const { latitude, longitude } = pos.coords;
+    const location = requestCurrentLocation
+      ? await getPosition()
+      : {
+          position: { coords: { latitude: 37.5665, longitude: 126.978 } } as GeolocationPosition,
+          source: "seoul-default" as const,
+        };
+    const { latitude, longitude } = location.position.coords;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -70,8 +80,14 @@ export async function getWeather(): Promise<WeatherData | null> {
     if (temp == null || code == null) throw new Error("Incomplete data");
 
     const { condition, icon, label } = getCondition(code);
-    const data: WeatherData = { temperature: Math.round(temp), condition, icon, label };
-    cached = { data, ts: Date.now() };
+    const data: WeatherData = {
+      temperature: Math.round(temp),
+      condition,
+      icon,
+      label,
+      locationSource: location.source,
+    };
+    cached[data.locationSource] = { data, ts: Date.now() };
     return data;
   } catch {
     return null;

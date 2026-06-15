@@ -1,0 +1,1 @@
+-- No production seed data. Keep user meal records isolated to verified Toss accounts.

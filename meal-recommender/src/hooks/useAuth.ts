@@ -1,5 +1,12 @@
 import { useState, useCallback } from "react";
 import { appLogin } from "@apps-in-toss/web-framework";
+import {
+  clearMealAccessToken,
+  exchangeTossLogin,
+  getMealAccessToken,
+  setMealAccessToken,
+} from "../lib/mealApi";
+import { GUEST_USER_KEY } from "../lib/localMeals";
 
 interface AuthState {
   userKey: string | null;
@@ -11,7 +18,8 @@ const STORAGE_KEY = "meal_user_key";
 export function useAuth() {
   const [auth, setAuth] = useState<AuthState>(() => {
     const stored = sessionStorage.getItem(STORAGE_KEY);
-    return { userKey: stored, isLoggedIn: !!stored };
+    const hasSession = stored === GUEST_USER_KEY || import.meta.env.DEV || !!getMealAccessToken();
+    return { userKey: hasSession ? stored : null, isLoggedIn: !!stored && hasSession };
   });
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -21,30 +29,8 @@ export function useAuth() {
     setLoginLoading(true);
     try {
       const { authorizationCode, referrer } = await appLogin();
-      const response = await fetch(
-        "https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/generate-token",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ authorizationCode, referrer }),
-        }
-      );
-      const tokenData = await response.json();
-      if (tokenData.resultType !== "SUCCESS") throw new Error("Login failed");
-
-      const userResp = await fetch(
-        "https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me",
-        {
-          headers: {
-            Authorization: `Bearer ${tokenData.success.accessToken}`,
-          },
-        }
-      );
-      const userData = await userResp.json();
-      if (userData.resultType !== "SUCCESS")
-        throw new Error("User info failed");
-
-      const userKey = String(userData.success.userKey);
+      const { userKey, accessToken } = await exchangeTossLogin(authorizationCode, referrer);
+      setMealAccessToken(accessToken);
       sessionStorage.setItem(STORAGE_KEY, userKey);
       setAuth({ userKey, isLoggedIn: true });
       setLoginError(null);
@@ -63,12 +49,20 @@ export function useAuth() {
     setLoginError(null);
   }, []);
 
+  const guestLogin = useCallback(() => {
+    sessionStorage.setItem(STORAGE_KEY, GUEST_USER_KEY);
+    clearMealAccessToken();
+    setAuth({ userKey: GUEST_USER_KEY, isLoggedIn: true });
+    setLoginError(null);
+  }, []);
+
   const logout = useCallback(() => {
     sessionStorage.removeItem(STORAGE_KEY);
+    clearMealAccessToken();
     setAuth({ userKey: null, isLoggedIn: false });
     setLoginError(null);
     setLoginLoading(false);
   }, []);
 
-  return { ...auth, login, devLogin, logout, loginError, loginLoading };
+  return { ...auth, login, guestLogin, devLogin, logout, loginError, loginLoading };
 }

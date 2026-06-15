@@ -5,7 +5,7 @@ export default defineConfig({
   brand: {
     displayName: "뭐먹지?",
     primaryColor: "#FF6B35",
-    icon: "",
+    icon: "/meal-recommender-icon.png",
   },
   web: {
     host: "localhost",
@@ -15,6 +15,6 @@ export default defineConfig({
       build: "vite build",
     },
   },
-  permissions: [],
+  permissions: [{ name: "geolocation", access: "access" }],
   outdir: "dist",
 });

@@ -1,12 +1,14 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { Meal } from "../lib/types";
 import type { WeatherData } from "../lib/weather";
 import { getWeather } from "../lib/weather";
 import { useMeals } from "../hooks/useMeals";
-import { getRecommendations, getTodayStatus } from "../lib/recommendation";
+import { getRecommendations, getTodayStatus, type MealMood } from "../lib/recommendation";
 import { koreanFoods } from "../lib/koreanFoods";
 import { Skeleton } from "../components/Skeleton";
 import type { Recommendation } from "../lib/recommendation";
+import { isSameSeoulDate } from "../lib/date";
+import { trackClick, trackImpression, trackScreen } from "../lib/analytics";
 
 interface HomePageProps {
   userKey: string;
@@ -39,24 +41,60 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
     return !sessionStorage.getItem("meal_user_key") && !sessionStorage.getItem("onboarding_done");
   });
   const [justLogged, setJustLogged] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [mealMood, setMealMood] = useState<MealMood>("any");
+  const lastRecommendationImpression = useRef("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setMealsLoading(true);
-    const [recent, favs, w] = await Promise.all([
-      getRecentMeals(userKey, 30),
-      getFavorites(userKey),
-      getWeather(),
-    ]);
-    setMeals(recent);
-    setFavorites(favs);
-    setWeather(w);
-    setWeatherLoading(false);
-    setMealsLoading(false);
-    setRecs(getRecommendations(recent, w, 3));
-    if (recent.length > 0) setShowOnboarding(false);
-  }
+    setError(null);
+    try {
+      const [recent, favs, w] = await Promise.all([
+        getRecentMeals(userKey, 30),
+        getFavorites(userKey),
+        getWeather(),
+      ]);
+      setMeals(recent);
+      setFavorites(favs);
+      setWeather(w);
+      if (recent.length > 0) setShowOnboarding(false);
+    } catch (loadError) {
+      console.error(loadError);
+      setError("기록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
+      const w = await getWeather();
+      setWeather(w);
+    } finally {
+      setWeatherLoading(false);
+      setMealsLoading(false);
+    }
+  }, [getFavorites, getRecentMeals, userKey]);
 
-  useEffect(() => { load(); }, [userKey]);
+  useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    trackScreen("meal_home_screen");
+  }, []);
+
+  useEffect(() => {
+    if (!mealsLoading) setRecs(getRecommendations(meals, weather, 3, mealMood));
+  }, [mealMood, meals, mealsLoading, weather]);
+
+  useEffect(() => {
+    if (mealsLoading || recs.length === 0) return;
+
+    const signature = `${mealMood}:${recs.map((rec) => rec.food).join("|")}`;
+    if (lastRecommendationImpression.current === signature) return;
+    lastRecommendationImpression.current = signature;
+
+    trackImpression("meal_recommendation_impression", {
+      mood: mealMood,
+      recommendation_count: recs.length,
+      meal_type: recs[0].mealType,
+      has_history: meals.length > 0,
+      weather_source: weather?.locationSource ?? "unavailable",
+    });
+  }, [mealMood, meals.length, mealsLoading, recs, weather?.locationSource]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -65,7 +103,8 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
   }
 
   function refreshRecs() {
-    setRecs(getRecommendations(meals, weather, 3));
+    trackClick("meal_recommendation_refresh_click", { mood: mealMood });
+    setRecs(getRecommendations(meals, weather, 3, mealMood));
     setSelectedRec(-1);
   }
 
@@ -73,8 +112,7 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
   const recentFoods = useMemo(() => [...new Set(meals.slice(0, 10).map((m) => m.food_name))], [meals]);
   const favoriteFoods = useMemo(() => [...new Set(favorites.map((m) => m.food_name))], [favorites]);
   const todayMeals = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return meals.filter((m) => m.eaten_at.startsWith(today));
+    return meals.filter((m) => isSameSeoulDate(m.eaten_at));
   }, [meals]);
   const allMealsLogged = todayStatus.missing.length === 0 && todayMeals.length > 0;
 
@@ -86,12 +124,26 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
   }
 
   async function handleLogMeal() {
-    if (!logFood.trim()) return;
-    await addMeal(userKey, logFood.trim(), logType, logFav);
-    setLogFood(""); setLogFav(false); setShowLog(false);
-    setJustLogged(true);
-    await load();
-    setTimeout(() => setJustLogged(false), 2000);
+    if (!logFood.trim() || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await addMeal(userKey, logFood.trim(), logType as Meal["meal_type"], logFav);
+      trackClick("meal_log_success", {
+        source: selectedRec >= 0 ? "recommendation" : "manual",
+        meal_type: logType,
+        favorite: logFav,
+      });
+      setLogFood(""); setLogFav(false); setShowLog(false);
+      setJustLogged(true);
+      await load();
+      setTimeout(() => setJustLogged(false), 2000);
+    } catch (saveError) {
+      console.error(saveError);
+      setError("기록을 저장하지 못했어요. 입력 내용은 그대로 두었으니 다시 시도해주세요.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -118,6 +170,12 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
         </div>
       )}
 
+      {error && (
+        <div role="alert" style={{ padding: "10px 14px", marginBottom: "12px", background: "#FFF0F0", borderRadius: "8px", color: "#C62828", fontSize: "14px" }}>
+          {error}
+        </div>
+      )}
+
       {showOnboarding && !mealsLoading && meals.length === 0 && (
         <div style={{ background: "#FFF3E0", borderRadius: "12px", padding: "16px", marginBottom: "12px" }}>
           <p style={{ fontSize: "14px", fontWeight: 600, color: "#FF6B35", margin: "0 0 4px" }}>👋 환영합니다!</p>
@@ -140,6 +198,7 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
           <span style={{ fontSize: "22px" }}>{weather.icon}</span>
           <span style={{ fontSize: "15px", fontWeight: 600 }}>{weather.temperature}°C</span>
           <span style={{ fontSize: "13px", color: "#666" }}>{weather.label}</span>
+          {weather.locationSource === "seoul-default" && <span style={{ fontSize: "11px", color: "#888" }}>서울 기준</span>}
         </div>
       ) : (
         !weatherLoading && (
@@ -172,12 +231,33 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
       ) : (
         <>
           <div style={{ marginBottom: "16px" }}>
+            <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+              {(["any", "light", "hearty"] as MealMood[]).map((mood) => (
+                <button
+                  key={mood}
+                  style={mealMood === mood ? btnSmallActive : btnSmall}
+                  onClick={() => {
+                    trackClick("meal_recommendation_mood_click", { mood });
+                    setMealMood(mood);
+                  }}
+                >
+                  {{ any: "아무거나", light: "가볍게", hearty: "든든하게" }[mood]}
+                </button>
+              ))}
+            </div>
             <p style={{ fontSize: "13px", color: "#888", margin: "0 0 8px" }}>
               🍽️ 오늘의 추천 · {recs[0] && mealTypeLabels[recs[0].mealType]}</p>
             {recs.map((rec, i) => (
               <div
                 key={i}
-                onClick={() => setSelectedRec(i)}
+                onClick={() => {
+                  trackClick("meal_recommendation_select_click", {
+                    mood: mealMood,
+                    position: i + 1,
+                    meal_type: rec.mealType,
+                  });
+                  setSelectedRec(i);
+                }}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   background: i === selectedRec ? "linear-gradient(135deg, #FF6B35, #FF8F50)" : "#F5F5F5",
@@ -198,6 +278,11 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
+                    trackClick("meal_recommendation_log_click", {
+                      mood: mealMood,
+                      position: i + 1,
+                      meal_type: rec.mealType,
+                    });
                     setSelectedRec(i);
                     setLogFood(rec.food);
                     setLogType(rec.mealType);
@@ -240,7 +325,7 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
                 <label htmlFor="fav" style={{ fontSize: "14px", color: "#666" }}>즐겨찾기에 추가</label>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button style={btnPrimary} onClick={handleLogMeal} disabled={!logFood.trim()}>기록하기</button>
+                <button style={btnPrimary} onClick={handleLogMeal} disabled={!logFood.trim() || saving}>{saving ? "저장 중..." : "기록하기"}</button>
                 <button style={btnWeak} onClick={() => setShowLog(false)}>취소</button>
               </div>
               {favoriteFoods.length > 0 && <TagSection title="⭐ 즐겨찾기" color="#FF6B35" items={favoriteFoods} onSelect={(f) => { setLogFood(f); setSuggestions([]); }} />}
