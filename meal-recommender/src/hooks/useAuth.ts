@@ -15,11 +15,17 @@ interface AuthState {
 
 const STORAGE_KEY = "meal_user_key";
 
+const DEV_USER_KEY = "dev-user-key";
+
 export function useAuth() {
   const [auth, setAuth] = useState<AuthState>(() => {
     const stored = sessionStorage.getItem(STORAGE_KEY);
-    const hasSession = stored === GUEST_USER_KEY || import.meta.env.DEV || !!getMealAccessToken();
-    return { userKey: hasSession ? stored : null, isLoggedIn: !!stored && hasSession };
+    const token = getMealAccessToken();
+    const isGuest = stored === GUEST_USER_KEY;
+    const isDev = import.meta.env.DEV && stored === DEV_USER_KEY;
+    const hasTossSession = stored != null && token != null;
+    const hasSession = isGuest || isDev || hasTossSession;
+    return { userKey: hasSession ? stored : null, isLoggedIn: hasSession };
   });
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -43,9 +49,8 @@ export function useAuth() {
   }, []);
 
   const devLogin = useCallback(() => {
-    const userKey = "dev-user-key";
-    sessionStorage.setItem(STORAGE_KEY, userKey);
-    setAuth({ userKey, isLoggedIn: true });
+    sessionStorage.setItem(STORAGE_KEY, DEV_USER_KEY);
+    setAuth({ userKey: DEV_USER_KEY, isLoggedIn: true });
     setLoginError(null);
   }, []);
 

@@ -45,11 +45,23 @@
 - [x] 6.3 Show summary when all meals are logged for the day
 - [x] 6.4 Show onboarding message for new users with no history
 - [x] 6.5 Add pull-to-refresh for new suggestion
+- [x] 6.6 Recommend the next unlogged main meal instead of repeatedly recommending an already logged meal slot
+- [x] 6.7 Prevent duplicate breakfast/lunch/dinner records for the same Seoul date
 
 ## 7. Polish & Deploy
 
 - [x] 7.1 Apply TDS design system consistently across all screens
 - [ ] 7.2 Test in 샌드박스 app
+  - [x] Console test modal opened for `20260616-4`
+  - [x] Console test modal opened for `20260616-5`
+  - [ ] Physical Toss app sandbox run on a logged-in age-verified device
 - [x] 7.3 Build and generate .ait bundle
 - [x] 7.4 Upload to 앱인토스 콘솔
+  - [x] Uploaded `20260616-4` / `019eceef-4f80-7571-9222-d0fd45c43f41`
+  - [x] `20260616-4` review was rejected for brand icon mismatch
+  - [x] Updated `brand.icon` to the console logo CDN URL
+  - [x] Uploaded `20260616-5` / `019ecf02-9861-77b2-b8e4-52b57e4754d1`
+  - [x] Uploaded logic improvement build / `019ecf1b-0d02-703a-9f34-f911c143c097`
+  - [ ] Confirm latest console row and submit review request; current status needs browser/manual recheck
 - [ ] 7.5 Submit challenge entry form
+  - [ ] Challenge form URL is needed

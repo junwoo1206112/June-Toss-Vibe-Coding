@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Meal } from "../lib/types";
 import { useMeals } from "../hooks/useMeals";
 import { Skeleton } from "../components/Skeleton";
@@ -17,21 +17,46 @@ const typeLabels: Record<string, string> = {
 export function StatisticsPage({ userKey, onBack }: StatisticsPageProps) {
   const { getMeals } = useMeals();
   const [meals, setMeals] = useState<Meal[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getMeals(userKey).then(setMeals);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getMeals(userKey);
+      setMeals(data);
+    } catch (err) {
+      console.error(err);
+      setError("통계를 불러오지 못했어요. 다시 시도해주세요.");
+    } finally {
+      setLoading(false);
+    }
   }, [getMeals, userKey]);
 
-  if (!meals) {
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading || !meals) {
     return (
       <div style={{ padding: "16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <h2 style={{ fontSize: "22px", margin: 0 }}>식사 통계</h2>
           <button style={btn} onClick={onBack}>뒤로</button>
         </div>
-        <Skeleton height={200} style={{ marginBottom: "16px" }} />
-        <Skeleton height={120} style={{ marginBottom: "12px" }} />
-        <Skeleton height={120} />
+        {error ? (
+          <div role="alert" style={{ padding: "16px", background: "#FFF0F0", borderRadius: "12px", color: "#C62828", fontSize: "14px", textAlign: "center" }}>
+            <p>{error}</p>
+            <button style={{ ...btn, marginTop: "8px" }} onClick={() => void load()}>다시 시도</button>
+          </div>
+        ) : (
+          <>
+            <Skeleton height={200} style={{ marginBottom: "16px" }} />
+            <Skeleton height={120} style={{ marginBottom: "12px" }} />
+            <Skeleton height={120} />
+          </>
+        )}
       </div>
     );
   }

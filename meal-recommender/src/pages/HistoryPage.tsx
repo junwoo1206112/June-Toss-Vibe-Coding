@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { Meal } from "../lib/types";
 import { useMeals } from "../hooks/useMeals";
 import { Skeleton } from "../components/Skeleton";
-import { toSeoulDateKey } from "../lib/date";
+import { toSeoulDateKey, getSeoulDateParts } from "../lib/date";
 
 interface HistoryPageProps {
   userKey: string;
@@ -104,9 +104,9 @@ export function HistoryPage({ userKey, onBack }: HistoryPageProps) {
     breakfast: "아침", lunch: "점심", dinner: "저녁", snack: "간식",
   };
 
-  const today = new Date();
-  const [m, setM] = useState(today.getMonth());
-  const [y, setY] = useState(today.getFullYear());
+  const todayParts = getSeoulDateParts(new Date());
+  const [m, setM] = useState(todayParts.month - 1);
+  const [y, setY] = useState(todayParts.year);
   const daysInMonth = new Date(y, m + 1, 0).getDate();
   const firstDay = new Date(y, m, 1).getDay();
   const datesWithMeals = new Set(meals.map((meal) => toSeoulDateKey(meal.eaten_at)));

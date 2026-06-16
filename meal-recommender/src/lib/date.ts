@@ -21,3 +21,16 @@ export function getSeoulDay(value: Date | string = new Date()): number {
   return new Date(`${dateKey}T12:00:00+09:00`).getDay();
 }
 
+export function getSeoulDateParts(value: Date | string = new Date()): { year: number; month: number; date: number } {
+  const dateKey = toSeoulDateKey(value);
+  const [year, month, date] = dateKey.split("-").map(Number);
+  return { year, month, date };
+}
+
+export function getSeoulDateRange(value: Date | string = new Date()): { start: string; end: string } {
+  const dateKey = toSeoulDateKey(value);
+  const startDate = new Date(`${dateKey}T00:00:00+09:00`);
+  const endDate = new Date(startDate);
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
+  return { start: startDate.toISOString(), end: endDate.toISOString() };
+}

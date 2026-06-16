@@ -3,7 +3,7 @@ import type { Meal } from "../lib/types";
 import type { WeatherData } from "../lib/weather";
 import { getWeather } from "../lib/weather";
 import { useMeals } from "../hooks/useMeals";
-import { getRecommendations, getTodayStatus, type MealMood } from "../lib/recommendation";
+import { getNextRecommendedMealType, getRecommendations, getTodayStatus, type MealMood } from "../lib/recommendation";
 import { koreanFoods } from "../lib/koreanFoods";
 import { Skeleton } from "../components/Skeleton";
 import type { Recommendation } from "../lib/recommendation";
@@ -20,7 +20,9 @@ const btnPrimary = { padding: "12px 24px", borderRadius: "10px", background: "#F
 const btnWeak = { padding: "10px 18px", borderRadius: "8px", background: "#f0f0f0", color: "#333", border: "none", fontSize: "14px", cursor: "pointer" } as const;
 const btnSmall = { padding: "6px 12px", borderRadius: "8px", background: "#f0f0f0", color: "#333", border: "none", fontSize: "13px", cursor: "pointer" } as const;
 const btnSmallActive = { ...btnSmall, background: "#FF6B35", color: "white" };
-const mealTypeLabels: Record<string, string> = { breakfast: "아침", lunch: "점심", dinner: "저녁", snack: "간식" };
+const btnSmallDisabled = { ...btnSmall, color: "#aaa", cursor: "not-allowed" };
+const mainMealTypes: Meal["meal_type"][] = ["breakfast", "lunch", "dinner"];
+const mealTypeLabels: Record<Meal["meal_type"], string> = { breakfast: "아침", lunch: "점심", dinner: "저녁", snack: "간식" };
 
 export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
   const { getRecentMeals, getFavorites, addMeal } = useMeals();
@@ -28,7 +30,7 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
   const [favorites, setFavorites] = useState<Meal[]>([]);
   const [showLog, setShowLog] = useState(false);
   const [logFood, setLogFood] = useState("");
-  const [logType, setLogType] = useState<string>("lunch");
+  const [logType, setLogType] = useState<Meal["meal_type"]>("lunch");
   const [logFav, setLogFav] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,7 +40,7 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [selectedRec, setSelectedRec] = useState(-1);
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    return !sessionStorage.getItem("meal_user_key") && !sessionStorage.getItem("onboarding_done");
+    return !sessionStorage.getItem("onboarding_done");
   });
   const [justLogged, setJustLogged] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +116,16 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
   const todayMeals = useMemo(() => {
     return meals.filter((m) => isSameSeoulDate(m.eaten_at));
   }, [meals]);
+  const loggedMainTypes = useMemo(() => {
+    return new Set(todayMeals.filter((m) => mainMealTypes.includes(m.meal_type)).map((m) => m.meal_type));
+  }, [todayMeals]);
+  const nextRecommendedMealType = useMemo(() => getNextRecommendedMealType(meals), [meals]);
   const allMealsLogged = todayStatus.missing.length === 0 && todayMeals.length > 0;
+  const isMainLogTypeComplete = mainMealTypes.includes(logType) && loggedMainTypes.has(logType);
+
+  useEffect(() => {
+    if (nextRecommendedMealType && !showLog) setLogType(nextRecommendedMealType);
+  }, [nextRecommendedMealType, showLog]);
 
   function handleFoodInput(value: string) {
     setLogFood(value);
@@ -125,10 +136,14 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
 
   async function handleLogMeal() {
     if (!logFood.trim() || saving) return;
+    if (mainMealTypes.includes(logType) && loggedMainTypes.has(logType)) {
+      setError(`오늘 ${mealTypeLabels[logType]}은 이미 기록했어요. 기록 화면에서 수정해주세요.`);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await addMeal(userKey, logFood.trim(), logType as Meal["meal_type"], logFav);
+      await addMeal(userKey, logFood.trim(), logType, logFav);
       trackClick("meal_log_success", {
         source: selectedRec >= 0 ? "recommendation" : "manual",
         meal_type: logType,
@@ -231,84 +246,116 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
       ) : (
         <>
           <div style={{ marginBottom: "16px" }}>
-            <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
-              {(["any", "light", "hearty"] as MealMood[]).map((mood) => (
-                <button
-                  key={mood}
-                  style={mealMood === mood ? btnSmallActive : btnSmall}
-                  onClick={() => {
-                    trackClick("meal_recommendation_mood_click", { mood });
-                    setMealMood(mood);
-                  }}
-                >
-                  {{ any: "아무거나", light: "가볍게", hearty: "든든하게" }[mood]}
-                </button>
-              ))}
-            </div>
-            <p style={{ fontSize: "13px", color: "#888", margin: "0 0 8px" }}>
-              🍽️ 오늘의 추천 · {recs[0] && mealTypeLabels[recs[0].mealType]}</p>
-            {recs.map((rec, i) => (
-              <div
-                key={i}
-                onClick={() => {
-                  trackClick("meal_recommendation_select_click", {
-                    mood: mealMood,
-                    position: i + 1,
-                    meal_type: rec.mealType,
-                  });
-                  setSelectedRec(i);
-                }}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  background: i === selectedRec ? "linear-gradient(135deg, #FF6B35, #FF8F50)" : "#F5F5F5",
-                  borderRadius: "12px", padding: "12px 16px", marginBottom: "6px",
-                  color: i === selectedRec ? "white" : "#333",
-                  cursor: "pointer", transition: "all 0.2s ease",
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "16px", fontWeight: 700 }}>{rec.food}</div>
-                  <div style={{ fontSize: "12px", opacity: 0.8 }}>{rec.reason}</div>
-                </div>
-                <button
-                  style={{
-                    padding: "6px 14px", borderRadius: "8px",
-                    background: i === selectedRec ? "rgba(255,255,255,0.25)" : "#FF6B35",
-                    color: "white", border: "none", fontSize: "13px", cursor: "pointer",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    trackClick("meal_recommendation_log_click", {
-                      mood: mealMood,
-                      position: i + 1,
-                      meal_type: rec.mealType,
-                    });
-                    setSelectedRec(i);
-                    setLogFood(rec.food);
-                    setLogType(rec.mealType);
-                    setShowLog(true);
-                  }}
-                >
-                  먹었어요
-                </button>
+            {recs.length === 0 ? (
+              <div style={{ background: "#F5F5F5", borderRadius: "12px", padding: "16px" }}>
+                <p style={{ fontSize: "15px", fontWeight: 700, margin: "0 0 4px" }}>오늘의 세 끼 기록이 끝났어요</p>
+                <p style={{ fontSize: "13px", color: "#666", margin: 0 }}>
+                  간식은 추가로 기록할 수 있고, 아침/점심/저녁을 바꾸려면 기록 화면에서 수정해주세요.
+                </p>
               </div>
-            ))}
-            <button style={{ ...btnSmall, width: "100%", marginTop: "4px" }} onClick={refreshRecs}>
-              🔄 다른 추천 보기
-            </button>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+                  {(["any", "light", "hearty"] as MealMood[]).map((mood) => (
+                    <button
+                      key={mood}
+                      style={mealMood === mood ? btnSmallActive : btnSmall}
+                      onClick={() => {
+                        trackClick("meal_recommendation_mood_click", { mood });
+                        setMealMood(mood);
+                      }}
+                    >
+                      {{ any: "아무거나", light: "가볍게", hearty: "든든하게" }[mood]}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: "13px", color: "#888", margin: "0 0 8px" }}>
+                  🍽️ 다음 추천 · {mealTypeLabels[recs[0].mealType]}</p>
+                {recs.map((rec, i) => (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      trackClick("meal_recommendation_select_click", {
+                        mood: mealMood,
+                        position: i + 1,
+                        meal_type: rec.mealType,
+                      });
+                      setSelectedRec(i);
+                    }}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      background: i === selectedRec ? "linear-gradient(135deg, #FF6B35, #FF8F50)" : "#F5F5F5",
+                      borderRadius: "12px", padding: "12px 16px", marginBottom: "6px",
+                      color: i === selectedRec ? "white" : "#333",
+                      cursor: "pointer", transition: "all 0.2s ease",
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "16px", fontWeight: 700 }}>{rec.food}</div>
+                      <div style={{ fontSize: "12px", opacity: 0.8 }}>{rec.reason}</div>
+                    </div>
+                    <button
+                      style={{
+                        padding: "6px 14px", borderRadius: "8px",
+                        background: i === selectedRec ? "rgba(255,255,255,0.25)" : "#FF6B35",
+                        color: "white", border: "none", fontSize: "13px", cursor: "pointer",
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        trackClick("meal_recommendation_log_click", {
+                          mood: mealMood,
+                          position: i + 1,
+                          meal_type: rec.mealType,
+                        });
+                        setSelectedRec(i);
+                        setLogFood(rec.food);
+                        setLogType(rec.mealType);
+                        setShowLog(true);
+                      }}
+                    >
+                      먹었어요
+                    </button>
+                  </div>
+                ))}
+                <button style={{ ...btnSmall, width: "100%", marginTop: "4px" }} onClick={refreshRecs}>
+                  🔄 다른 추천 보기
+                </button>
+              </>
+            )}
           </div>
 
           {!showLog ? (
-            <button style={{ ...btnPrimary, width: "100%", marginBottom: "16px" }} onClick={() => setShowLog(true)}>
+            <button
+              style={{ ...btnPrimary, width: "100%", marginBottom: "16px" }}
+              onClick={() => {
+                setLogType(nextRecommendedMealType ?? "snack");
+                setShowLog(true);
+              }}
+            >
               오늘 뭐 먹었어요?
             </button>
           ) : (
             <div style={{ background: "#F5F5F5", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
               <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-                {Object.entries(mealTypeLabels).map(([id, label]) => (
-                  <button key={id} style={logType === id ? btnSmallActive : btnSmall} onClick={() => setLogType(id)}>{label}</button>
-                ))}
+                {(Object.entries(mealTypeLabels) as [Meal["meal_type"], string][]).map(([id, label]) => {
+                  const disabled = mainMealTypes.includes(id) && loggedMainTypes.has(id);
+                  return (
+                    <button
+                      key={id}
+                      style={disabled ? btnSmallDisabled : logType === id ? btnSmallActive : btnSmall}
+                      disabled={disabled}
+                      onClick={() => setLogType(id)}
+                    >
+                      {label}{disabled ? " 완료" : ""}
+                    </button>
+                  );
+                })}
               </div>
+              {isMainLogTypeComplete && (
+                <p style={{ fontSize: "13px", color: "#C62828", margin: "0 0 8px" }}>
+                  오늘 {mealTypeLabels[logType]}은 이미 기록했어요. 바꾸려면 기록 화면에서 수정해주세요.
+                </p>
+              )}
               <input type="text" placeholder="뭐 드셨어요? (예: 김치찌개)" value={logFood}
                 onChange={(e) => handleFoodInput(e.target.value)}
                 style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "16px", boxSizing: "border-box", marginBottom: suggestions.length > 0 ? "4px" : "12px" }} />
@@ -325,7 +372,7 @@ export function HomePage({ userKey, onNavigate, onLogout }: HomePageProps) {
                 <label htmlFor="fav" style={{ fontSize: "14px", color: "#666" }}>즐겨찾기에 추가</label>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button style={btnPrimary} onClick={handleLogMeal} disabled={!logFood.trim() || saving}>{saving ? "저장 중..." : "기록하기"}</button>
+                <button style={btnPrimary} onClick={handleLogMeal} disabled={!logFood.trim() || saving || isMainLogTypeComplete}>{saving ? "저장 중..." : "기록하기"}</button>
                 <button style={btnWeak} onClick={() => setShowLog(false)}>취소</button>
               </div>
               {favoriteFoods.length > 0 && <TagSection title="⭐ 즐겨찾기" color="#FF6B35" items={favoriteFoods} onSelect={(f) => { setLogFood(f); setSuggestions([]); }} />}
