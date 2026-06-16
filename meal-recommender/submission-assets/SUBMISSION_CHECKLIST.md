@@ -20,10 +20,15 @@
 
 ## 사용자 입력 필요
 
-- [ ] 고객문의 이메일
-- [ ] 개인정보 처리방침의 문의 이메일 교체
+- [x] 고객문의 이메일: `kdong135@naver.com`
+- [x] 개인정보 처리방침의 문의 이메일 교체
+- [x] 앱인토스 콘솔 텍스트 메타데이터 임시저장
 - [ ] GitHub Pages 공개 후 개인정보 처리방침 URL 연결
+  - 공개 예정 URL: `https://junwoo1206112.github.io/June-Toss-Vibe-Coding/privacy/`
+  - 필요 작업: GitHub Pages를 GitHub Actions로 설정한 뒤 `main`/`master` 푸시 또는 `Publish Privacy Policy` 워크플로우 수동 실행
 - [ ] 콘솔 파일 업로드와 필수 확인 항목 체크
+  - 로고: `../public/app-logo-600.png`
+  - 썸네일: `app-thumbnail-1932x828.png`
 - [ ] 만 19세 이상 토스 앱 로그인 기기에서 샌드박스 스킴 실행
 
 샌드박스 스킴:
