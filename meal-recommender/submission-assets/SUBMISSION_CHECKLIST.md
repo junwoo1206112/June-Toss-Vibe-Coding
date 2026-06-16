@@ -34,14 +34,14 @@
 - [x] GitHub Pages 공개 후 개인정보 처리방침 URL 연결
   - 공개 URL: `https://junwoo1206112.github.io/June-Toss-Vibe-Coding/privacy/`
   - 공개 확인: `200 OK`, 고객문의 이메일 포함 확인
-- [ ] 콘솔 파일 업로드와 필수 확인 항목 체크
-  - 카테고리: `생활` 또는 `푸드` 선택 필요
+- [x] 콘솔 파일 업로드와 필수 확인 항목 체크
+  - 카테고리: `생활 > 편의 > 도구`
   - 로고: `../public/app-logo-600.png`
   - 다크모드 로고: `../public/app-logo-600.png`
   - 썸네일: `app-thumbnail-1932x828.png`
-  - 스크린샷: `screenshot-landscape-1504x741.png` 및 필요 시 `01-recommendation.png`
+  - 스크린샷: 가로형 등록 완료
   - 검색 키워드: `메뉴추천`, `뭐먹지`, `식사기록`, `점심`, `저녁`
-  - 확인 체크박스 5개 수동 체크 필요
+  - 앱 정보 상태: 검토 중
 - [ ] 최신 게스트 모드 포함 `.ait` 재업로드
   - 파일: `../meal-recommender.ait`
   - 현재 상태: `AIT_DEPLOY_API_KEY` 미설정으로 자동 업로드 대기
