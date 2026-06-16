@@ -55,18 +55,22 @@
   - 최신 번들 버전: `20260616-2`
   - 테스트 모달 확인: `intoss-private://meal-recommender?_deploymentId=019ecddc-61d9-79f6-96bd-78ef9a5324d7`
 - [x] 최신 버전 검토 요청
-  - 현재 상태: `검토 중`
-  - 콘솔 알림: `요청이 완료되었어요. 검토 후 이메일로 알려드릴게요. (20260616-2)`
+  - 결과: 반려
+  - 반려 사유: 콘솔에 등록한 브랜드 아이콘과 `granite.config.ts`의 `brand.icon`이 동일해야 함
+  - 조치: `granite.config.ts`의 `brand.icon`을 `/app-logo-600.png`로 변경하고 새 `.ait` 빌드 완료
+  - 새 deploymentId: `019ece0b-8bb3-7da9-be94-190c74b2f961`
+- [ ] 브랜드 아이콘 일치 수정본 재업로드
+  - 현재 상태: 콘솔 API 키 폐기 완료 상태라 새 키 발급 필요
 - [ ] 만 19세 이상 토스 앱 로그인 기기에서 샌드박스 스킴 실행
   - 물리 기기 확인은 별도 수행 필요
 
 샌드박스 스킴:
 
-`intoss-private://meal-recommender?_deploymentId=019ecddc-61d9-79f6-96bd-78ef9a5324d7`
+`intoss-private://meal-recommender?_deploymentId=019ece0b-8bb3-7da9-be94-190c74b2f961`
 
 게스트 모드가 포함된 최신 배포:
 
-`019ecddc-61d9-79f6-96bd-78ef9a5324d7`
+`019ece0b-8bb3-7da9-be94-190c74b2f961`
 
 GitHub Actions 실행 기록:
 

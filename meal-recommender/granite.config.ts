@@ -5,7 +5,7 @@ export default defineConfig({
   brand: {
     displayName: "뭐먹지?",
     primaryColor: "#FF6B35",
-    icon: "/meal-recommender-icon.png",
+    icon: "/app-logo-600.png",
   },
   web: {
     host: "localhost",
