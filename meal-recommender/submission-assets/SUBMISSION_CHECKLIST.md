@@ -51,11 +51,14 @@
 - [x] 최신 게스트 모드 포함 `.ait` 재업로드
   - 파일: `../meal-recommender.ait`
   - deploymentId: `019ecddc-61d9-79f6-96bd-78ef9a5324d7`
-- [ ] 앱 출시 페이지에서 최신 버전 테스트 실행
+- [x] 앱 출시 페이지에서 최신 버전 테스트 실행
   - 최신 번들 버전: `20260616-2`
-  - 현재 상태: `검토 필요`
-  - 콘솔 상태: 테스트 전이라 최신 버전의 `검토 요청` 버튼 비활성
+  - 테스트 모달 확인: `intoss-private://meal-recommender?_deploymentId=019ecddc-61d9-79f6-96bd-78ef9a5324d7`
+- [x] 최신 버전 검토 요청
+  - 현재 상태: `검토 중`
+  - 콘솔 알림: `요청이 완료되었어요. 검토 후 이메일로 알려드릴게요. (20260616-2)`
 - [ ] 만 19세 이상 토스 앱 로그인 기기에서 샌드박스 스킴 실행
+  - 물리 기기 확인은 별도 수행 필요
 
 샌드박스 스킴:
 
@@ -72,3 +75,7 @@ GitHub Actions 실행 기록:
 GitHub Pages 브랜치:
 
 `https://github.com/junwoo1206112/June-Toss-Vibe-Coding/tree/gh-pages`
+
+보안 후속 조치:
+
+- [ ] 채팅에 노출된 콘솔 API 키 폐기 또는 재발급
