@@ -31,14 +31,20 @@
 - [x] 고객문의 이메일: `kdong135@naver.com`
 - [x] 개인정보 처리방침의 문의 이메일 교체
 - [x] 앱인토스 콘솔 텍스트 메타데이터 임시저장
-- [ ] GitHub Pages 공개 후 개인정보 처리방침 URL 연결
-  - 공개 예정 URL: `https://junwoo1206112.github.io/June-Toss-Vibe-Coding/privacy/`
-  - 현재 상태: `Publish Privacy Policy` 워크플로우는 푸시로 실행됐지만 `Configure Pages` 단계에서 실패
-  - 우회 배포 상태: `gh-pages` 브랜치에도 `privacy/index.html` 푸시 완료, 그러나 Pages API와 공개 URL은 아직 404
-  - 필요 작업: GitHub 저장소 `Settings > Pages > Build and deployment > Source`를 `GitHub Actions`로 설정한 뒤 `Publish Privacy Policy` 워크플로우 수동 실행
+- [x] GitHub Pages 공개 후 개인정보 처리방침 URL 연결
+  - 공개 URL: `https://junwoo1206112.github.io/June-Toss-Vibe-Coding/privacy/`
+  - 공개 확인: `200 OK`, 고객문의 이메일 포함 확인
 - [ ] 콘솔 파일 업로드와 필수 확인 항목 체크
+  - 카테고리: `생활` 또는 `푸드` 선택 필요
   - 로고: `../public/app-logo-600.png`
+  - 다크모드 로고: `../public/app-logo-600.png`
   - 썸네일: `app-thumbnail-1932x828.png`
+  - 스크린샷: `screenshot-landscape-1504x741.png` 및 필요 시 `01-recommendation.png`
+  - 검색 키워드: `메뉴추천`, `뭐먹지`, `식사기록`, `점심`, `저녁`
+  - 확인 체크박스 5개 수동 체크 필요
+- [ ] 최신 게스트 모드 포함 `.ait` 재업로드
+  - 파일: `../meal-recommender.ait`
+  - 현재 상태: `AIT_DEPLOY_API_KEY` 미설정으로 자동 업로드 대기
 - [ ] 만 19세 이상 토스 앱 로그인 기기에서 샌드박스 스킴 실행
 
 샌드박스 스킴:
@@ -47,7 +53,7 @@
 
 게스트 모드가 포함된 최신 배포 후보:
 
-`019ec97f-33c1-7766-a681-408bcda806c4`
+`019ecddc-61d9-79f6-96bd-78ef9a5324d7`
 
 GitHub Actions 실행 기록:
 
